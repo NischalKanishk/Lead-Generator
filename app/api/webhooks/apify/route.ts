@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase/server';
+import { gunzip } from 'zlib';
+import { promisify } from 'util';
+
+const gunzipAsync = promisify(gunzip);
 
 type ApifyDatasetItem = {
   title?: string;
@@ -8,9 +12,28 @@ type ApifyDatasetItem = {
   [key: string]: unknown;
 };
 
-export async function POST(request: Request) {
+type ApifyWebhookBody = {
+  resource?: { id?: string };
+  eventData?: { clientType?: number | string };
+};
+
+export async function POST(req: Request) {
   try {
-    const body = await request.json();
+    let body: ApifyWebhookBody;
+    const contentEncoding = req.headers.get('content-encoding') || '';
+    const rawBuffer = Buffer.from(await req.arrayBuffer());
+
+    try {
+      if (contentEncoding.includes('gzip') || contentEncoding.includes('br')) {
+        const decompressed = await gunzipAsync(rawBuffer);
+        body = JSON.parse(decompressed.toString('utf-8'));
+      } else {
+        body = JSON.parse(rawBuffer.toString('utf-8'));
+      }
+    } catch {
+      return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
+    }
+
     const runId = body?.resource?.id as string | undefined;
     const clientType = Number(body?.eventData?.clientType);
 
@@ -69,3 +92,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
