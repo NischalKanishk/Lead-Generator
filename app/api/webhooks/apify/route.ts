@@ -82,12 +82,25 @@ export async function POST(req: Request) {
     }
 
     const supabase = getSupabase();
-    const { error } = await supabase
-      .from('leads')
-      .upsert(leads, { ignoreDuplicates: true });
+    const withEmail = leads.filter((l) => l.email);
+    const withoutEmail = leads.filter((l) => !l.email);
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (withEmail.length > 0) {
+      const { error } = await supabase
+        .from('leads')
+        .upsert(withEmail, {
+          onConflict: 'email',
+          ignoreDuplicates: true,
+        });
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+    }
+    if (withoutEmail.length > 0) {
+      const { error } = await supabase.from('leads').insert(withoutEmail);
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
     }
 
     return NextResponse.json({ ok: true, count: leads.length });
