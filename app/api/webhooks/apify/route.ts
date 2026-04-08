@@ -1,9 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase/server';
-import { gunzip } from 'zlib';
-import { promisify } from 'util';
-
-const gunzipAsync = promisify(gunzip);
+import { gunzipSync } from 'zlib';
 
 type ApifyDatasetItem = {
   title?: string;
@@ -19,19 +16,20 @@ type ApifyWebhookBody = {
 
 export async function POST(req: Request) {
   try {
-    let body: ApifyWebhookBody;
-    const contentEncoding = req.headers.get('content-encoding') || '';
+    // Handle gzip-compressed bodies from Apify
     const rawBuffer = Buffer.from(await req.arrayBuffer());
-
+    let body: ApifyWebhookBody;
     try {
-      if (contentEncoding.includes('gzip') || contentEncoding.includes('br')) {
-        const decompressed = await gunzipAsync(rawBuffer);
-        body = JSON.parse(decompressed.toString('utf-8'));
-      } else {
-        body = JSON.parse(rawBuffer.toString('utf-8'));
-      }
+      // Try gunzip first (Apify compresses webhook bodies)
+      const decompressed = gunzipSync(rawBuffer);
+      body = JSON.parse(decompressed.toString('utf-8')) as ApifyWebhookBody;
     } catch {
-      return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
+      // Fall back to plain JSON
+      try {
+        body = JSON.parse(rawBuffer.toString('utf-8')) as ApifyWebhookBody;
+      } catch {
+        return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
+      }
     }
 
     const runId = body?.resource?.id as string | undefined;
