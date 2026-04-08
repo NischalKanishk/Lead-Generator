@@ -46,18 +46,8 @@ export async function POST(request: Request) {
     const base = (appUrl || fallbackBase).replace(/\/$/, '');
     const requestUrl = `${base}/api/webhooks/apify`;
     const payloadTemplate = `{"resource":{{resource}},"eventData":{"clientType":${clientType}}}`;
-
-    const webhooks = [
-      {
-        eventTypes: ['ACTOR.RUN.SUCCEEDED'],
-        requestUrl,
-        payloadTemplate,
-        isAdHoc: true,
-      },
-    ];
     const apifyUrl = new URL(`https://api.apify.com/v2/acts/${encodeURIComponent(actorId)}/runs`);
     apifyUrl.searchParams.set('token', token);
-    apifyUrl.searchParams.set('webhooks', JSON.stringify(webhooks));
 
     const apifyRes = await fetch(apifyUrl.toString(), {
       method: 'POST',
