@@ -36,16 +36,11 @@ export async function POST(request: Request) {
 
     const token = process.env.APIFY_API_TOKEN;
     const actorId = process.env.APIFY_ACTOR_ID;
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
 
     if (!token || !actorId) {
       return NextResponse.json({ error: 'Missing APIFY_API_TOKEN or APIFY_ACTOR_ID' }, { status: 500 });
     }
 
-    const fallbackBase = new URL(request.url).origin;
-    const base = (appUrl || fallbackBase).replace(/\/$/, '');
-    const requestUrl = `${base}/api/webhooks/apify`;
-    const payloadTemplate = `{"resource":{{resource}},"eventData":{"clientType":${clientType}}}`;
     const apifyUrl = new URL(`https://api.apify.com/v2/acts/${encodeURIComponent(actorId)}/runs`);
     apifyUrl.searchParams.set('token', token);
 
