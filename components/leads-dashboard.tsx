@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Check, ChevronLeft, ChevronRight, Copy, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Copy, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -113,6 +113,17 @@ function statusLabel(s: string): string {
     return LEAD_STATUS_LABELS[s as LeadStatus];
   }
   return s;
+}
+
+/** Split contact fields that may hold multiple values (semicolon, comma, newline, pipe). */
+function splitContactList(raw: string | null | undefined): string[] {
+  if (raw == null) return [];
+  const s = String(raw).trim();
+  if (!s) return [];
+  return s
+    .split(/[;,\n|]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
 }
 
 const GENERATE_TABS: {
@@ -514,78 +525,100 @@ export function LeadsDashboard() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/30 hover:bg-muted/30">
-                  <TableHead>Name / Title</TableHead>
+                  <TableHead>Name</TableHead>
                   <TableHead>Company</TableHead>
-                  <TableHead>City</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead>Status</TableHead>
                   <TableHead>Email</TableHead>
-                  <TableHead className="w-[120px]">Actions</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead className="w-[120px]">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {leads.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={7}
+                      colSpan={6}
                       className="h-32 text-center text-muted-foreground"
                     >
                       No leads match your filters.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  leads.map((lead) => (
-                    <TableRow
-                      key={String(lead.id)}
-                      className="cursor-pointer"
-                      onClick={() => openLead(lead)}
-                    >
-                      <TableCell>
-                        <div className="font-medium text-foreground">
-                          {lead.name}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {lead.title || "—"}
-                        </div>
-                      </TableCell>
-                      <TableCell>{lead.company_name ?? "—"}</TableCell>
-                      <TableCell>{lead.city ?? "—"}</TableCell>
-                      <TableCell>
-                        <Badge variant={typeBadgeVariant(Number(lead.client_type))}>
-                          {clientTypeLabel(Number(lead.client_type))}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={statusBadgeVariant(lead.status)}>
-                          {statusLabel(lead.status)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {lead.email ? (
-                          <Check
-                            className="h-5 w-5 text-emerald-600"
-                            aria-label="Has email"
-                          />
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          disabled={generatingRowId === String(lead.id)}
-                          onClick={(e) => handleRowGenerate(e, lead)}
-                        >
-                          {generatingRowId === String(lead.id) ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                  leads.map((lead) => {
+                    const emails = splitContactList(lead.email);
+                    const phones = splitContactList(lead.phone);
+                    return (
+                      <TableRow
+                        key={String(lead.id)}
+                        className="cursor-pointer"
+                        onClick={() => openLead(lead)}
+                      >
+                        <TableCell className="align-top">
+                          <div className="font-medium text-foreground">
+                            {lead.name || "—"}
+                          </div>
+                          <div className="mt-1.5">
+                            <Badge variant={statusBadgeVariant(lead.status)}>
+                              {statusLabel(lead.status)}
+                            </Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell className="align-top">
+                          {lead.company_name ?? "—"}
+                        </TableCell>
+                        <TableCell className="align-top">
+                          <Badge
+                            variant={typeBadgeVariant(Number(lead.client_type))}
+                          >
+                            {clientTypeLabel(Number(lead.client_type))}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="align-top">
+                          {emails.length > 0 ? (
+                            <ul className="list-none space-y-1 text-sm">
+                              {emails.map((em, i) => (
+                                <li
+                                  key={`${String(lead.id)}-e-${i}`}
+                                  className="break-all"
+                                >
+                                  {em}
+                                </li>
+                              ))}
+                            </ul>
                           ) : (
-                            "Generate"
+                            <span className="text-muted-foreground">—</span>
                           )}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                        </TableCell>
+                        <TableCell className="align-top">
+                          {phones.length > 0 ? (
+                            <ul className="list-none space-y-1 text-sm">
+                              {phones.map((ph, i) => (
+                                <li key={`${String(lead.id)}-p-${i}`}>
+                                  {ph}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="align-top">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            disabled={generatingRowId === String(lead.id)}
+                            onClick={(e) => handleRowGenerate(e, lead)}
+                          >
+                            {generatingRowId === String(lead.id) ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              "Generate"
+                            )}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
