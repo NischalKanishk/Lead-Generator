@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { ApifyClient } from 'apify-client';
 
 function normalizeQueries(raw: unknown): string[] | null {
   if (Array.isArray(raw)) {
@@ -39,30 +38,45 @@ export async function POST(request: Request) {
     const actorId = process.env.APIFY_ACTOR_ID;
     const appUrl = process.env.NEXT_PUBLIC_APP_URL;
 
-    if (!token || !actorId || !appUrl) {
-      return NextResponse.json({ error: 'Missing APIFY_API_TOKEN, APIFY_ACTOR_ID, or NEXT_PUBLIC_APP_URL' }, { status: 500 });
+    if (!token || !actorId) {
+      return NextResponse.json({ error: 'Missing APIFY_API_TOKEN or APIFY_ACTOR_ID' }, { status: 500 });
     }
 
-    const base = appUrl.replace(/\/$/, '');
+    const fallbackBase = new URL(request.url).origin;
+    const base = (appUrl || fallbackBase).replace(/\/$/, '');
     const requestUrl = `${base}/api/webhooks/apify`;
     const payloadTemplate = `{"resource":{{resource}},"eventData":{"clientType":${clientType}}}`;
 
-    const client = new ApifyClient({ token });
-    const run = await client.actor(actorId).start(
-      { queries, maxResultsPerQuery: 10 },
+    const webhooks = [
       {
-        webhooks: [
-          {
-            eventTypes: ['ACTOR.RUN.SUCCEEDED'],
-            requestUrl,
-            payloadTemplate,
-            isAdHoc: true,
-          },
-        ],
+        eventTypes: ['ACTOR.RUN.SUCCEEDED'],
+        requestUrl,
+        payloadTemplate,
+        isAdHoc: true,
       },
-    );
+    ];
+    const apifyUrl = new URL(`https://api.apify.com/v2/acts/${encodeURIComponent(actorId)}/runs`);
+    apifyUrl.searchParams.set('token', token);
+    apifyUrl.searchParams.set('webhooks', JSON.stringify(webhooks));
 
-    return NextResponse.json({ runId: run.id });
+    const apifyRes = await fetch(apifyUrl.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ queries, maxResultsPerQuery: 10 }),
+    });
+    const apifyJson = (await apifyRes.json().catch(() => ({}))) as {
+      data?: { id?: string };
+      error?: { message?: string };
+    };
+
+    if (!apifyRes.ok) {
+      return NextResponse.json(
+        { error: apifyJson.error?.message ?? 'Failed to start Apify run' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ runId: apifyJson.data?.id ?? null });
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Unknown error';
     return NextResponse.json({ error: message }, { status: 500 });
