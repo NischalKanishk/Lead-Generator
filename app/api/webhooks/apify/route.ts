@@ -55,7 +55,6 @@ export async function POST(req: Request) {
     }
 
     const items = (await res.json()) as ApifyDatasetItem[];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Apify item shape varies by actor run
     const leads = items.map((item: any) => {
       const cleanName = (item.name || item.title || '')
         .split('|')[0].split(' - ')[0].split('–')[0].trim()
