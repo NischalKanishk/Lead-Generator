@@ -55,28 +55,43 @@ export async function POST(req: Request) {
     }
 
     const items = (await res.json()) as ApifyDatasetItem[];
-    const rows = items
-      .map((item) => {
-        const linkedin_url = typeof item.url === 'string' ? item.url : '';
-        if (!linkedin_url) return null;
-        return {
-          name: typeof item.title === 'string' ? item.title : '',
-          linkedin_url,
-          notes: typeof item.snippet === 'string' ? item.snippet : '',
-          source: 'google_search',
-          client_type: clientType,
-          status: 'new',
-        };
-      })
-      .filter(Boolean) as Record<string, unknown>[];
+    const leads = items.map((item: ApifyDatasetItem) => {
+      const url = typeof item.url === 'string' ? item.url : '';
+      const src = item.source;
+      const srcStr = typeof src === 'string' ? src : 'duckduckgo';
+      const ct = Number(item.client_type);
+      return {
+        name:
+          (typeof item.name === 'string' && item.name) ||
+          (typeof item.title === 'string' && item.title) ||
+          null,
+        title: typeof item.title === 'string' ? item.title : null,
+        email: typeof item.email === 'string' ? item.email : null,
+        phone: typeof item.phone === 'string' ? item.phone : null,
+        linkedin_url: url && url.includes('linkedin.com') ? url : null,
+        company_name:
+          (typeof item.companyName === 'string' && item.companyName) ||
+          (typeof item.currentCompany === 'string' && item.currentCompany) ||
+          null,
+        company_website: url && !url.includes('linkedin.com') ? url : null,
+        city:
+          (typeof item.location === 'string' && item.location) ||
+          (typeof item.city === 'string' && item.city) ||
+          null,
+        notes: typeof item.snippet === 'string' ? item.snippet : null,
+        source: srcStr,
+        client_type: ct || clientType,
+        status: 'new' as const,
+        apify_run_id: runId,
+      };
+    });
 
-    if (rows.length === 0) {
+    if (leads.length === 0) {
       return NextResponse.json({ ok: true, count: 0 });
     }
 
     const supabase = getSupabase();
-    const { error } = await supabase.from('leads').upsert(rows, {
-      onConflict: 'linkedin_url',
+    const { error } = await supabase.from('leads').upsert(leads, {
       ignoreDuplicates: true,
     });
 
@@ -84,7 +99,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, count: rows.length });
+    return NextResponse.json({ ok: true, count: leads.length });
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Unknown error';
     return NextResponse.json({ error: message }, { status: 500 });
