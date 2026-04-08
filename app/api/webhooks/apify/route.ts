@@ -77,32 +77,25 @@ export async function POST(req: Request) {
     })
 
     if (leads.length === 0) {
-      return NextResponse.json({ ok: true, count: 0 });
+      return NextResponse.json({ ok: true, count: 0, total: 0 });
     }
 
     const supabase = getSupabase();
-    const withEmail = leads.filter((l) => l.email);
-    const withoutEmail = leads.filter((l) => !l.email);
+    let inserted = 0;
 
-    if (withEmail.length > 0) {
-      const { error } = await supabase
-        .from('leads')
-        .upsert(withEmail, {
-          onConflict: 'email',
-          ignoreDuplicates: true,
-        });
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-      }
-    }
-    if (withoutEmail.length > 0) {
-      const { error } = await supabase.from('leads').insert(withoutEmail);
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    for (const lead of leads) {
+      try {
+        const { error } = await supabase.from('leads').insert(lead);
+        if (!error) inserted++;
+        else if (!error.message.includes('duplicate') && !error.message.includes('unique')) {
+          console.error('Insert error:', error.message);
+        }
+      } catch (e) {
+        console.error('Unexpected error:', e);
       }
     }
 
-    return NextResponse.json({ ok: true, count: leads.length });
+    return NextResponse.json({ ok: true, count: inserted, total: leads.length });
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Unknown error';
     return NextResponse.json({ error: message }, { status: 500 });
