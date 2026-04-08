@@ -74,6 +74,15 @@ const SCRAPE_QUERY_PRESETS: Record<"1" | "2" | "3", string[]> = {
   ],
 };
 
+const EDUCATION_INSTITUTE_TYPES = [
+  "engineering college",
+  "medical college",
+  "MBA college",
+  "degree college",
+  "school",
+  "PU college",
+] as const;
+
 function typeBadgeVariant(t: number): "orange" | "blue" | "green" {
   if (t === 1) return "orange";
   if (t === 2) return "blue";
@@ -146,6 +155,9 @@ export function LeadsDashboard() {
 
   const [scrapeClientType, setScrapeClientType] = useState<string>("1");
   const [scrapeQueries, setScrapeQueries] = useState("");
+  const [scrapeEducationCity, setScrapeEducationCity] = useState("bangalore");
+  const [scrapeEducationInstituteType, setScrapeEducationInstituteType] =
+    useState<string>(EDUCATION_INSTITUTE_TYPES[0]);
   const [scrapeSubmitting, setScrapeSubmitting] = useState(false);
 
   const [addForm, setAddForm] = useState({
@@ -280,13 +292,23 @@ export function LeadsDashboard() {
   const submitScrape = async () => {
     setScrapeSubmitting(true);
     try {
+      const isEducation = scrapeClientType === "3";
+      const body = isEducation
+        ? {
+            city: scrapeEducationCity.trim() || "bangalore",
+            singleType: scrapeEducationInstituteType,
+            maxPerType: 6,
+            clientType: 3,
+          }
+        : {
+            client_type: Number(scrapeClientType),
+            queries: scrapeQueries,
+          };
+
       const res = await fetch("/api/scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          client_type: Number(scrapeClientType),
-          queries: scrapeQueries,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -295,7 +317,9 @@ export function LeadsDashboard() {
       }
       toast.success(`Scrape started — run ${data.runId}`);
       setScrapeOpen(false);
-      setScrapeQueries("");
+      if (!isEducation) {
+        setScrapeQueries("");
+      }
     } finally {
       setScrapeSubmitting(false);
     }
@@ -720,8 +744,9 @@ export function LeadsDashboard() {
           <DialogHeader>
             <DialogTitle>Run Scraper</DialogTitle>
             <DialogDescription>
-              One search query per line. Requires Apify env vars; on success you
-              will get a run id for the actor.
+              {scrapeClientType === "3"
+                ? "Pick a city and one institute type per run. Requires Apify env vars; on success you will get a run id for the actor."
+                : "One search query per line. Requires Apify env vars; on success you will get a run id for the actor."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -732,7 +757,9 @@ export function LeadsDashboard() {
                 onValueChange={(value) => {
                   const nextType = value as "1" | "2" | "3";
                   setScrapeClientType(nextType);
-                  setScrapeQueries(SCRAPE_QUERY_PRESETS[nextType].join("\n"));
+                  if (nextType !== "3") {
+                    setScrapeQueries(SCRAPE_QUERY_PRESETS[nextType].join("\n"));
+                  }
                 }}
               >
                 <SelectTrigger>
@@ -747,17 +774,54 @@ export function LeadsDashboard() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="scrape-queries">Search queries</Label>
-              <Textarea
-                id="scrape-queries"
-                rows={8}
-                placeholder={`"head of people" "mumbai" startup site:linkedin.com\n"office manager" "bangalore" company site:linkedin.com\nengineering college mumbai contact`}
-                value={scrapeQueries}
-                onChange={(e) => setScrapeQueries(e.target.value)}
-                className="font-mono text-sm"
-              />
-            </div>
+            {scrapeClientType === "3" ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="scrape-education-city">City</Label>
+                  <Input
+                    id="scrape-education-city"
+                    value={scrapeEducationCity}
+                    onChange={(e) => setScrapeEducationCity(e.target.value)}
+                    placeholder="bangalore"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="scrape-institute-type">
+                    Run one type at a time (to avoid memory limits)
+                  </Label>
+                  <Select
+                    value={scrapeEducationInstituteType}
+                    onValueChange={setScrapeEducationInstituteType}
+                  >
+                    <SelectTrigger id="scrape-institute-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EDUCATION_INSTITUTE_TYPES.map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {t}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-muted-foreground text-sm">
+                    Run each type separately for best results
+                  </p>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="scrape-queries">Search queries</Label>
+                <Textarea
+                  id="scrape-queries"
+                  rows={8}
+                  placeholder={`"head of people" "mumbai" startup site:linkedin.com\n"office manager" "bangalore" company site:linkedin.com\nengineering college mumbai contact`}
+                  value={scrapeQueries}
+                  onChange={(e) => setScrapeQueries(e.target.value)}
+                  className="font-mono text-sm"
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setScrapeOpen(false)}>

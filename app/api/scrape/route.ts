@@ -37,14 +37,26 @@ export async function POST(request: Request) {
       );
     }
 
+    const singleTypeRaw = body?.singleType;
+    const singleType =
+      typeof singleTypeRaw === 'string'
+        ? singleTypeRaw.trim()
+        : singleTypeRaw != null
+          ? String(singleTypeRaw).trim()
+          : '';
+
     let actorInput: Record<string, unknown>;
     if (hasCity) {
       actorInput = {
         city,
-        instituteTypes: body?.instituteTypes,
         maxPerType: body?.maxPerType,
         clientType,
       };
+      if (singleType) {
+        actorInput.singleType = singleType;
+      } else {
+        actorInput.instituteTypes = body?.instituteTypes;
+      }
     } else if (queries) {
       const maxPerType = Number(body?.maxPerType);
       actorInput = {
@@ -55,7 +67,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            'Provide either city (with instituteTypes / maxPerType as needed) or queries (non-empty string[] or newline-separated string)',
+            'Provide either city (with singleType or instituteTypes, and maxPerType as needed) or queries (non-empty string[] or newline-separated string)',
         },
         { status: 400 }
       );

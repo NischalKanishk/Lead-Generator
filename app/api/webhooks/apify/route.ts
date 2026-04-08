@@ -60,25 +60,37 @@ export async function POST(req: Request) {
       const src = item.source;
       const srcStr = typeof src === 'string' ? src : 'duckduckgo';
       const ct = Number(item.client_type);
+      const head =
+        String(item.name ?? item.title ?? '')
+          .split('|')[0]
+          .split('-')[0]
+          .trim() || null;
+      const snippet = typeof item.snippet === 'string' ? item.snippet : null;
+      const allPhones = item.all_phones;
+      let phonesLine: string | null = null;
+      if (Array.isArray(allPhones)) {
+        const joined = allPhones.map(String).filter(Boolean).join(', ');
+        phonesLine = joined ? joined : null;
+      } else if (typeof allPhones === 'string' && allPhones.trim()) {
+        phonesLine = allPhones.trim();
+      } else if (allPhones != null && allPhones !== '') {
+        phonesLine = String(allPhones);
+      }
+      const notes =
+        [snippet, phonesLine].filter(Boolean).join('\n\n') || null;
       return {
-        name:
-          (typeof item.name === 'string' && item.name) ||
-          (typeof item.title === 'string' && item.title) ||
-          null,
+        name: head,
         title: typeof item.title === 'string' ? item.title : null,
         email: typeof item.email === 'string' ? item.email : null,
         phone: typeof item.phone === 'string' ? item.phone : null,
         linkedin_url: url && url.includes('linkedin.com') ? url : null,
-        company_name:
-          (typeof item.companyName === 'string' && item.companyName) ||
-          (typeof item.currentCompany === 'string' && item.currentCompany) ||
-          null,
+        company_name: head,
         company_website: url && !url.includes('linkedin.com') ? url : null,
         city:
           (typeof item.location === 'string' && item.location) ||
           (typeof item.city === 'string' && item.city) ||
           null,
-        notes: typeof item.snippet === 'string' ? item.snippet : null,
+        notes,
         source: srcStr,
         client_type: ct || clientType,
         status: 'new' as const,
@@ -92,6 +104,7 @@ export async function POST(req: Request) {
 
     const supabase = getSupabase();
     const { error } = await supabase.from('leads').upsert(leads, {
+      onConflict: 'company_website',
       ignoreDuplicates: true,
     });
 
