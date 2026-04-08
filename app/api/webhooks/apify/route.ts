@@ -55,58 +55,36 @@ export async function POST(req: Request) {
     }
 
     const items = (await res.json()) as ApifyDatasetItem[];
-    const leads = items.map((item: ApifyDatasetItem) => {
-      const url = typeof item.url === 'string' ? item.url : '';
-      const src = item.source;
-      const srcStr = typeof src === 'string' ? src : 'duckduckgo';
-      const ct = Number(item.client_type);
-      const head =
-        String(item.name ?? item.title ?? '')
-          .split('|')[0]
-          .split('-')[0]
-          .trim() || null;
-      const snippet = typeof item.snippet === 'string' ? item.snippet : null;
-      const allPhones = item.all_phones;
-      let phonesLine: string | null = null;
-      if (Array.isArray(allPhones)) {
-        const joined = allPhones.map(String).filter(Boolean).join(', ');
-        phonesLine = joined ? joined : null;
-      } else if (typeof allPhones === 'string' && allPhones.trim()) {
-        phonesLine = allPhones.trim();
-      } else if (allPhones != null && allPhones !== '') {
-        phonesLine = String(allPhones);
-      }
-      const notes =
-        [snippet, phonesLine].filter(Boolean).join('\n\n') || null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Apify item shape varies by actor run
+    const leads = items.map((item: any) => {
+      const cleanName = (item.name || item.title || '')
+        .split('|')[0].split(' - ')[0].split('–')[0].trim()
+
       return {
-        name: head,
-        title: typeof item.title === 'string' ? item.title : null,
-        email: typeof item.email === 'string' ? item.email : null,
-        phone: typeof item.phone === 'string' ? item.phone : null,
-        linkedin_url: url && url.includes('linkedin.com') ? url : null,
-        company_name: head,
-        company_website: url && !url.includes('linkedin.com') ? url : null,
-        city:
-          (typeof item.location === 'string' && item.location) ||
-          (typeof item.city === 'string' && item.city) ||
-          null,
-        notes,
-        source: srcStr,
-        client_type: ct || clientType,
-        status: 'new' as const,
+        name: cleanName || null,
+        title: item.title || null,
+        email: item.email || null,
+        phone: item.phone || null,
+        linkedin_url: item.url && item.url.includes('linkedin.com/in/') ? item.url : null,
+        company_name: cleanName || null,
+        company_website: item.url && !item.url.includes('linkedin.com') ? item.url : null,
+        company_city: null,
+        notes: item.snippet || null,
+        source: item.source || 'duckduckgo',
+        client_type: item.client_type || clientType,
+        status: 'new',
         apify_run_id: runId,
-      };
-    });
+      }
+    })
 
     if (leads.length === 0) {
       return NextResponse.json({ ok: true, count: 0 });
     }
 
     const supabase = getSupabase();
-    const { error } = await supabase.from('leads').upsert(leads, {
-      onConflict: 'company_website',
-      ignoreDuplicates: true,
-    });
+    const { error } = await supabase
+      .from('leads')
+      .upsert(leads, { ignoreDuplicates: true });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
