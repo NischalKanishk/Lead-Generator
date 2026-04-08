@@ -50,6 +50,29 @@ import {
 } from "@/lib/types";
 
 const PAGE_SIZE = 20;
+const SCRAPE_QUERY_PRESETS: Record<"1" | "2" | "3", string[]> = {
+  "1": [
+    "head of people mumbai startup site:linkedin.com",
+    "head of HR bangalore startup site:linkedin.com",
+    "chief of staff mumbai startup site:linkedin.com",
+    "chief of staff bangalore startup site:linkedin.com",
+    "CEO founder mumbai startup 50 employees site:linkedin.com",
+  ],
+  "2": [
+    "office manager mumbai company site:linkedin.com",
+    "admin manager bangalore company site:linkedin.com",
+    "operations manager mumbai mid-size company site:linkedin.com",
+    "travel coordinator bangalore company site:linkedin.com",
+    "executive assistant CEO mumbai site:linkedin.com",
+  ],
+  "3": [
+    "placement coordinator engineering college mumbai contact",
+    "dean student affairs bangalore university contact",
+    "TPO engineering college pune contact",
+    "student affairs coordinator mumbai college contact",
+    "placement officer MBA institute bangalore",
+  ],
+};
 
 function typeBadgeVariant(t: number): "orange" | "blue" | "green" {
   if (t === 1) return "orange";
@@ -706,7 +729,11 @@ export function LeadsDashboard() {
               <Label>Client type</Label>
               <Select
                 value={scrapeClientType}
-                onValueChange={setScrapeClientType}
+                onValueChange={(value) => {
+                  const nextType = value as "1" | "2" | "3";
+                  setScrapeClientType(nextType);
+                  setScrapeQueries(SCRAPE_QUERY_PRESETS[nextType].join("\n"));
+                }}
               >
                 <SelectTrigger>
                   <SelectValue />
