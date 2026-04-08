@@ -21,15 +21,42 @@ export async function POST(request: Request) {
     const queries = normalizeQueries(body?.queries);
     const clientType = Number(body?.clientType ?? body?.client_type);
 
-    if (!queries) {
-      return NextResponse.json(
-        { error: 'queries must be a non-empty string[] or newline-separated string' },
-        { status: 400 }
-      );
-    }
+    const cityRaw = body?.city;
+    const city =
+      typeof cityRaw === 'string'
+        ? cityRaw.trim()
+        : cityRaw != null
+          ? String(cityRaw).trim()
+          : '';
+    const hasCity = city.length > 0;
+
     if (!Number.isFinite(clientType)) {
       return NextResponse.json(
         { error: 'clientType or client_type must be a number' },
+        { status: 400 }
+      );
+    }
+
+    let actorInput: Record<string, unknown>;
+    if (hasCity) {
+      actorInput = {
+        city,
+        instituteTypes: body?.instituteTypes,
+        maxPerType: body?.maxPerType,
+        clientType,
+      };
+    } else if (queries) {
+      const maxPerType = Number(body?.maxPerType);
+      actorInput = {
+        queries,
+        maxResultsPerQuery: maxPerType || 10,
+      };
+    } else {
+      return NextResponse.json(
+        {
+          error:
+            'Provide either city (with instituteTypes / maxPerType as needed) or queries (non-empty string[] or newline-separated string)',
+        },
         { status: 400 }
       );
     }
@@ -47,7 +74,7 @@ export async function POST(request: Request) {
     const apifyRes = await fetch(apifyUrl.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ queries, maxResultsPerQuery: 10 }),
+      body: JSON.stringify(actorInput),
     });
     const apifyJson = (await apifyRes.json().catch(() => ({}))) as {
       data?: { id?: string };
